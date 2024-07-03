@@ -72,6 +72,44 @@ router.get('/auth/me', verifyToken, async (req, res) => {
     res.sendStatus(404);
 });
 
+router.post('/auth/register', async (req, res) => {
+    const { nombre, apellido, telefono, correo, contraseña, confirm_password, userType, nombre_empresa, rfc, direccion_comercial, regimen_fiscal, correo_corporativo } = req.body;
+    if (contraseña === confirm_password) {
+        const usuarios = await db.query("find", userType === 'Usuario' ? "clientes" : "proveedores", { $or: [{ telefono: telefono }, { correo: correo }] }, {});
+        if (usuarios.length > 0) {
+            return res.status(400).json({ message: 'Correo o teléfono ya registrado en otra cuenta' });
+        } else {
+            const queryObject = userType === 'Usuario' ? {
+                nombre: nombre,
+                apellido: apellido,
+                correo: correo,
+                contraseña: contraseña,
+                telefono: telefono,
+                created_at: new Date(),
+                imagen: 'rutaImaginaria.jpg',
+                active: true,
+                proveedores: []
+            } : {
+                nombre_empresa: nombre_empresa,
+                correo_corporativo: correo_corporativo,
+                contraseña: contraseña,
+                telefono: telefono,
+                rfc: rfc,
+                direccion_comercial: direccion_comercial,
+                regimen_fiscal: regimen_fiscal,
+                created_at: new Date(),
+                active: true,
+            };
+
+            const collection = userType === 'Usuario' ? "clientes" : "proveedores";
+            const result = await db.query("insert", collection, queryObject, {});
+            return res.status(201).json({ message: 'Usuario registrado con éxito', userId: result.insertedId });
+        }
+    } else {
+        return res.status(400).json({ message: 'La contraseña no fue confirmada correctamente' });
+    }
+});
+
 module.exports = router;
 
 
