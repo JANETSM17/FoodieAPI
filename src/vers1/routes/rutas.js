@@ -6,6 +6,17 @@ const db = require("../../databases/db");
 // Clave secreta para firmar el token. 
 const SECRET_KEY = 'foodie';
 
+const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+function crearClave() {
+    let clave = "";
+    for (let i = 0; i < 6; i++) {
+        const indiceAleatorio = Math.floor(Math.random() * caracteres.length);
+        clave += caracteres.charAt(indiceAleatorio);
+    }
+    return clave;
+}
+
 // Ruta de inicio de sesión
 router.post('/auth/login', async (req, res) => {
     const { email, password, expiresInMins } = req.body;
@@ -47,23 +58,16 @@ router.get('/auth/me', verifyToken, async (req, res) => {
     const { id, userType } = req.user;
 
     if (userType === 'cliente') {
-        // Busca los comedores relacionados con el cliente
-        const respuesta = await db.query("find", "clientes", { _id: db.objectID(id) }, { "proveedores.id_proveedor": 1, _id: 0 });
-        let idsComedores = [];
-        if (respuesta[0].proveedores.length > 0) {
-            respuesta[0].proveedores.forEach(comedor => {
-                idsComedores.push(comedor.id_proveedor);
-            });
-            const info = await db.query("find", "proveedores", { _id: { $in: idsComedores } }, { _id: 1, nombre: 1, calif: 1, min_espera: 1, active: 1 });
-            return res.json(info);
-        } else {
-            return res.json([]);
+        // Busca la información del cliente
+        const cliente = await db.query("find", "clientes", { _id: db.objectID(id) }, { _id: 1, nombre: 1, apellido: 1, correo: 1, telefono: 1, created_at: 1 , imagen: 1 ,  active: 1 });
+        if (cliente.length > 0) {
+            return res.json(cliente[0]);
         }
     }
 
     if (userType === 'proveedor') {
-        // Devuelve el teléfono y dirección del proveedor
-        const proveedor = await db.query("find", "proveedores", { _id: db.objectID(id) }, { _id: 1, correo: 1, telefono: 1, direccion: 1 });
+        // Devuelve la info del proveedor
+        const proveedor = await db.query("find", "proveedores", { _id: db.objectID(id) }, { _id: 1, nombre: 1, correo: 1, telefono: 1, imagen: 1, direccion: 1, calif: 1, min_espera: 1, clave: 1 });
         if (proveedor.length > 0) {
             return res.json(proveedor[0]);
         }
@@ -72,16 +76,57 @@ router.get('/auth/me', verifyToken, async (req, res) => {
     res.sendStatus(404);
 });
 
+// Ruta para obtener los comedores de un cliente
+router.get('/comedores', verifyToken, async (req, res) => {
+    const { id, userType } = req.user;
+
+    if (userType === 'cliente') {
+        const cliente = await db.query("find", "clientes", { _id: db.objectID(id) }, { "proveedores.id_proveedor": 1, _id: 0 });
+        let idsComedores = [];
+        if (cliente[0].proveedores.length > 0) {
+            cliente[0].proveedores.forEach(comedor => {
+                idsComedores.push(comedor.id_proveedor);
+            });
+            const info = await db.query("find", "proveedores", { _id: { $in: idsComedores } }, { _id: 1, nombre: 1, calif: 1, min_espera: 1, imagen: 1 });
+            return res.json(info);
+        } else {
+            return res.json([]);
+        }
+    } else {
+        res.sendStatus(403);
+    }
+});
+
+
 router.post('/auth/register', async (req, res) => {
     const { nombre, apellido, telefono, correo, contraseña, confirm_password, userType, nombre_empresa, rfc, direccion_comercial, regimen_fiscal, correo_corporativo } = req.body;
     if (contraseña === confirm_password) {
-        const usuarios = await db.query("find", userType === 'Usuario' ? "clientes" : "proveedores", { $or: [{ telefono: telefono }, { correo: correo }] }, {});
+        const collection = userType === 'Usuario' ? "clientes" : "proveedores";
+        const queryCondition = userType === 'Usuario'
+            ? { $or: [{ telefono: telefono }, { correo: correo }] }
+            : { $or: [{ telefono: telefono }, { correo: correo }, { rfc: rfc }] };
+
+        const usuarios = await db.query("find", collection, queryCondition, {});
         if (usuarios.length > 0) {
-            return res.status(400).json({ message: 'Correo o teléfono ya registrado en otra cuenta' });
+            if (userType === 'Usuario') {
+                return res.status(400).json({ message: 'Correo o teléfono ya registrado en otra cuenta' });
+            }else{
+                return res.status(400).json({ message: 'Correo, teléfono o RFC ya registrado en otra cuenta' });
+            }
+            
         } else {
+            let clave = "";
+            const clavesExistentes = await db.query("find", "proveedores", {}, { clave: 1, _id: 0 });
+                let claves = clavesExistentes.map(item => item.clave);
+                
+                clave = crearClave();
+                while (claves.includes(clave)) {
+                    clave = crearClave();
+                }
+
             const queryObject = userType === 'Usuario' ? {
-                nombre: nombre,
-                apellido: apellido,
+                nombre: nombre + " " + apellido,
+                //apellido: apellido,
                 correo: correo,
                 contraseña: contraseña,
                 telefono: telefono,
@@ -90,18 +135,21 @@ router.post('/auth/register', async (req, res) => {
                 active: true,
                 proveedores: []
             } : {
-                nombre_empresa: nombre_empresa,
-                correo_corporativo: correo_corporativo,
+                nombre: nombre_empresa,
+                correo: correo_corporativo,
                 contraseña: contraseña,
                 telefono: telefono,
-                rfc: rfc,
-                direccion_comercial: direccion_comercial,
-                regimen_fiscal: regimen_fiscal,
                 created_at: new Date(),
+                imagen: 'rutaImaginaria.jpg',
                 active: true,
+                regimen_fiscal: regimen_fiscal,
+                direccion: direccion_comercial,
+                calif: 0,
+                rfc: rfc,
+                min_espera: 15,
+                clave: clave
             };
 
-            const collection = userType === 'Usuario' ? "clientes" : "proveedores";
             const result = await db.query("insert", collection, queryObject, {});
             return res.status(201).json({ message: 'Usuario registrado con éxito', userId: result.insertedId });
         }
