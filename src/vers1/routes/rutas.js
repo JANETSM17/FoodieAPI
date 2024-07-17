@@ -76,7 +76,6 @@ router.get('/auth/me', verifyToken, async (req, res) => {
     res.sendStatus(404);
 });
 
-// Ruta para obtener los comedores de un cliente
 router.get('/comedores', verifyToken, async (req, res) => {
     const { id, userType } = req.user;
 
@@ -97,6 +96,34 @@ router.get('/comedores', verifyToken, async (req, res) => {
     }
 });
 
+router.post('/addComedor', verifyToken, async (req, res) => {
+    const { id, userType } = req.user;
+    const { comedorCode } = req.body;
+
+    if (userType === 'cliente') {
+        const comedor = await db.query("find", "proveedores", { clave: comedorCode }, { _id: 1 });
+        if (comedor.length > 0) {
+            const result = await db.query("update", "clientes", { _id: db.objectID(id) }, { $addToSet: { proveedores: { id_proveedor: comedor[0]._id } } });
+            return res.json({ message: 'Comedor added successfully', result });
+        } else {
+            return res.status(404).json({ message: 'Comedor not found' });
+        }
+    } else {
+        res.sendStatus(403);
+    }
+});
+
+router.post('/deleteComedor', verifyToken, async (req, res) => {
+    const { id, userType } = req.user;
+    const { comedorId } = req.body;
+
+    if (userType === 'cliente') {
+        const result = await db.query("update", "clientes", { _id: db.objectID(id) }, { $pull: { proveedores: { id_proveedor: db.objectID(comedorId) } } });
+        return res.json({ message: 'Comedor deleted successfully', result });
+    } else {
+        res.sendStatus(403);
+    }
+});
 
 router.post('/auth/register', async (req, res) => {
     const { nombre, apellido, telefono, correo, contraseña, confirm_password, userType, nombre_empresa, rfc, direccion_comercial, regimen_fiscal, correo_corporativo } = req.body;
@@ -151,6 +178,12 @@ router.post('/auth/register', async (req, res) => {
             };
 
             const result = await db.query("insert", collection, queryObject, {});
+
+            if(userType === 'Usuario'){
+                const nuevoCarrito = await db.query("insert","pedidos",{cliente: correo ,estado:"Carrito",proveedor:"",especificaciones:"",descripcion:[],especificaciones:""})
+            console.log(nuevoCarrito)
+            }
+            
             return res.status(201).json({ message: 'Usuario registrado con éxito', userId: result.insertedId });
         }
     } else {
