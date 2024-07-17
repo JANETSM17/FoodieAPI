@@ -125,6 +125,46 @@ router.post('/deleteComedor', verifyToken, async (req, res) => {
     }
 });
 
+router.get('/comedor/:id', verifyToken, async (req, res) => {
+    const comedorId = req.params.id;
+    const comedor = await db.query("find", "proveedores", { _id: db.objectID(comedorId) }, { _id: 1, nombre: 1, calif: 1, imagen: 1 });
+    if (comedor.length > 0) {
+      res.json(comedor[0]);
+    } else {
+      res.sendStatus(404);
+    }
+  });
+  
+  router.get('/comedor/:id/comida', verifyToken, async (req, res) => {
+    const comedorId = req.params.id;
+    const comida = await db.query("find", "productos", { id_proveedor: db.objectID(comedorId), categoria: 'comida' }, {imagen:1,nombre:1,descripcion:1,precio:1,_id:1});
+    res.json(comida);
+  });
+  
+  router.get('/comedor/:id/bebidas', verifyToken, async (req, res) => {
+    const comedorId = req.params.id;
+    const bebidas = await db.query("find", "productos", { id_proveedor: db.objectID(comedorId), categoria: 'bebidas' }, {imagen:1,nombre:1,descripcion:1,precio:1,_id:1});
+    res.json(bebidas);
+  });
+  
+  router.get('/comedor/:id/frituras', verifyToken, async (req, res) => {
+    const comedorId = req.params.id;
+    const frituras = await db.query("find", "productos", { id_proveedor: db.objectID(comedorId), categoria: 'frituras' }, {imagen:1,nombre:1,descripcion:1,precio:1,_id:1});
+    res.json(frituras);
+  });
+  
+  router.get('/comedor/:id/dulces', verifyToken, async (req, res) => {
+    const comedorId = req.params.id;
+    const dulces = await db.query("find", "productos", { id_proveedor: db.objectID(comedorId), categoria: 'dulces' }, {imagen:1,nombre:1,descripcion:1,precio:1,_id:1});
+    res.json(dulces);
+  });
+  
+  router.get('/comedor/:id/otros', verifyToken, async (req, res) => {
+    const comedorId = req.params.id;
+    const otros = await db.query("find", "productos", { id_proveedor: db.objectID(comedorId), categoria: 'otros' }, {imagen:1,nombre:1,descripcion:1,precio:1,_id:1});
+    res.json(otros);
+  });
+
 router.post('/auth/register', async (req, res) => {
     const { nombre, apellido, telefono, correo, contraseña, confirm_password, userType, nombre_empresa, rfc, direccion_comercial, regimen_fiscal, correo_corporativo } = req.body;
     if (contraseña === confirm_password) {
