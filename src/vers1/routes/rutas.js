@@ -165,6 +165,22 @@ router.get('/comedor/:id', verifyToken, async (req, res) => {
     res.json(otros);
   });
 
+  router.get('/getCarrito/:correo', verifyToken , async (req,res) => {
+    const correo = req.params.correo
+    try {
+      const info = await db.query("find","pedidos",{cliente: correo , estado:"Carrito"},{_id:1});
+      if (info.length > 0) {
+        console.log("Se obtuvo el id del carrito: " + info[0]._id);
+        res.json(info[0]._id);
+      } else {
+        res.status(404).json({ message: "No carrito found" });
+      }
+    } catch (error) {
+      console.error("Error fetching carrito ID:", error);
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+  
 router.post('/auth/register', async (req, res) => {
     const { nombre, apellido, telefono, correo, contraseña, confirm_password, userType, nombre_empresa, rfc, direccion_comercial, regimen_fiscal, correo_corporativo } = req.body;
     if (contraseña === confirm_password) {
