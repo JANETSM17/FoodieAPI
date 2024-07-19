@@ -135,49 +135,65 @@ router.get('/comedor/:id', verifyToken, async (req, res) => {
     }
   });
   
-  router.get('/comedor/:id/comida', verifyToken, async (req, res) => {
+router.get('/comedor/:id/comida', verifyToken, async (req, res) => {
     const comedorId = req.params.id;
     const comida = await db.query("find", "productos", { id_proveedor: db.objectID(comedorId), categoria: 'comida' }, {imagen:1,nombre:1,descripcion:1,precio:1,_id:1});
     res.json(comida);
   });
   
-  router.get('/comedor/:id/bebidas', verifyToken, async (req, res) => {
+router.get('/comedor/:id/bebidas', verifyToken, async (req, res) => {
     const comedorId = req.params.id;
     const bebidas = await db.query("find", "productos", { id_proveedor: db.objectID(comedorId), categoria: 'bebidas' }, {imagen:1,nombre:1,descripcion:1,precio:1,_id:1});
     res.json(bebidas);
   });
   
-  router.get('/comedor/:id/frituras', verifyToken, async (req, res) => {
+router.get('/comedor/:id/frituras', verifyToken, async (req, res) => {
     const comedorId = req.params.id;
     const frituras = await db.query("find", "productos", { id_proveedor: db.objectID(comedorId), categoria: 'frituras' }, {imagen:1,nombre:1,descripcion:1,precio:1,_id:1});
     res.json(frituras);
   });
   
-  router.get('/comedor/:id/dulces', verifyToken, async (req, res) => {
+router.get('/comedor/:id/dulces', verifyToken, async (req, res) => {
     const comedorId = req.params.id;
     const dulces = await db.query("find", "productos", { id_proveedor: db.objectID(comedorId), categoria: 'dulces' }, {imagen:1,nombre:1,descripcion:1,precio:1,_id:1});
     res.json(dulces);
   });
   
-  router.get('/comedor/:id/otros', verifyToken, async (req, res) => {
+router.get('/comedor/:id/otros', verifyToken, async (req, res) => {
     const comedorId = req.params.id;
     const otros = await db.query("find", "productos", { id_proveedor: db.objectID(comedorId), categoria: 'otros' }, {imagen:1,nombre:1,descripcion:1,precio:1,_id:1});
     res.json(otros);
   });
 
-  router.get('/getCarrito/:correo', verifyToken , async (req,res) => {
+router.get('/getCarrito/:correo', verifyToken , async (req,res) => {
     const correo = req.params.correo
     try {
-      const info = await db.query("find","pedidos",{cliente: correo , estado:"Carrito"},{_id:1});
-      if (info.length > 0) {
-        console.log("Se obtuvo el id del carrito: " + info[0]._id);
-        res.json(info[0]._id);
-      } else {
-        res.status(404).json({ message: "No carrito found" });
-      }
+        const info = await db.query("find","pedidos",{cliente: correo , estado:"Carrito"},{_id:1});
+        if (info.length > 0) {
+            console.log("Se obtuvo el id del carrito: " + info[0]._id);
+            res.json(info[0]._id);
+        } else {
+            res.status(404).json({ message: "No carrito found" });
+        }
     } catch (error) {
-      console.error("Error fetching carrito ID:", error);
-      res.status(500).json({ message: "Internal Server Error" });
+        console.error("Error fetching carrito ID:", error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  router.get('/confirmarCarrito/:id_producto/:idCarrito', verifyToken, async (req, res) => {
+    const { id_producto, idCarrito } = req.params;
+    try {
+        
+        const productExists = await db.query("find","pedidos",{_id:db.objectID(idCarrito),"descripcion.producto.id_producto":db.objectID(id_producto)},{_id:1})
+        if (productExists.length > 0) {
+            res.json({ exists: true });
+        } else {
+            res.json({ exists: false });
+        }
+    } catch (error) {
+        console.error("Error confirming cart:", error);
+        res.status(500).json({ message: "Internal server error" });
     }
   });
   
@@ -214,7 +230,7 @@ router.post('/auth/register', async (req, res) => {
                 contraseña: contraseña,
                 telefono: telefono,
                 created_at: new Date(),
-                imagen: 'rutaImaginaria.jpg',
+                imagen: '../assets/images/fotosCliente/FoxClient.jpeg',
                 active: true,
                 proveedores: []
             } : {
@@ -223,7 +239,7 @@ router.post('/auth/register', async (req, res) => {
                 contraseña: contraseña,
                 telefono: telefono,
                 created_at: new Date(),
-                imagen: 'rutaImaginaria.jpg',
+                imagen: '../assets/images/fotosProveedor/cubiertos.png',
                 active: true,
                 regimen_fiscal: regimen_fiscal,
                 direccion: direccion_comercial,
