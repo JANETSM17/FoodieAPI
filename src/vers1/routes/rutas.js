@@ -196,6 +196,42 @@ router.get('/getCarrito/:correo', verifyToken , async (req,res) => {
         res.status(500).json({ message: "Internal server error" });
     }
   });
+
+  router.get('/agregarCarrito/:id_producto/:idCarrito', async (req, res) => {
+    const id_producto = req.params.id_producto;
+    const id_carrito = req.params.idCarrito;
+  
+    try {
+      console.log('Inicia el query');
+  
+      // Obtener información del producto
+      const producto = await db.query("find", "productos", {_id: db.objectID(id_producto)}, {_id: 1, nombre: 1, precio: 1, id_proveedor: 1});
+      
+      // Obtener información del proveedor del producto
+      const proveedorProducto = await db.query("find", "proveedores", {_id: producto[0].id_proveedor}, {correo: 1});
+      
+      // Obtener información del pedido
+      const proveedorPedido = await db.query("find", "pedidos", {_id: db.objectID(id_carrito)}, {proveedor: 1});
+      
+      let darAviso = false;
+  
+      // Verificar si el proveedor ha cambiado y actualizar el pedido
+      if (proveedorProducto[0].correo !== proveedorPedido[0].proveedor) {
+        await db.query("update", "pedidos", {_id: db.objectID(id_carrito)}, {$set: {proveedor: proveedorProducto[0].correo, descripcion: []}});
+        darAviso = proveedorPedido[0].proveedor !== "";
+        console.log("DarAviso: " + darAviso);
+        console.log(proveedorPedido[0].proveedor);
+      }
+  
+      // Agregar producto al pedido
+      const resultado = await db.query("update", "pedidos", {_id: db.objectID(id_carrito)}, {$push: {descripcion: {producto: {id_producto: db.objectID(id_producto), nombre: producto[0].nombre, precio: producto[0].precio}, cantidad: 1}}});
+      
+      res.json({status: 'success', dar_aviso: darAviso, resultado});
+    } catch (error) {
+      console.error('Error en la consulta:', error);
+      res.status(500).json({status: 'error', message: 'Ocurrió un error en el servidor.'});
+    }
+  });
   
 router.post('/auth/register', async (req, res) => {
     const { nombre, apellido, telefono, correo, contraseña, confirm_password, userType, nombre_empresa, rfc, direccion_comercial, regimen_fiscal, correo_corporativo } = req.body;
