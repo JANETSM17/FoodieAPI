@@ -231,6 +231,45 @@ router.post('/auth/register', async (req, res) => {
     }
 });
 
+// Ruta para obtener los datos del usuario autenticado
+router.post('/edit/:campo', verifyToken, async (req, res) => {
+    const { id, userType } = req.user;
+    const {campo} = req.params //el campo que se va a editar
+    const {newValue} = req.body //el valor que se le va a dar
+    let data = {} //objeto que se utiliza para hacer el update
+
+    if(campo=="min_espera"){
+        data[campo] = +newValue //guarda el valor numerico, no el string del numero
+    }else if(campo == "active"){
+        data[campo] = newValue=="true"?true:false //guarda un valor booleano
+    }else{
+        data[campo] = newValue //guarda el valor como string
+    }
+    
+
+    if (userType === 'cliente') {
+        // Actualiza la información del cliente
+        const cliente = await db.query("update", "clientes", { _id: db.objectID(id) },{$set:data});
+        if (cliente.acknowledged > 0) {
+            return res.status(201).json({ message: `Campo ${campo} actualizado con éxito, nuevo valor: ${newValue}`});
+        }else{
+            res.sendStatus(404);
+        }
+    }
+
+    if (userType === 'proveedor') {
+        // Actualiza la info del proveedor
+        const proveedor = await db.query("find", "proveedores", { _id: db.objectID(id) }, {$set:data});
+        if (proveedor.acknowledged > 0) {
+            return res.status(201).json({ message: `Campo ${campo} actualizado con éxito, nuevo valor: ${newValue}`});
+        }else{
+            res.sendStatus(404);
+        }
+    }
+
+    res.sendStatus(403);
+});
+
 module.exports = router;
 
 
