@@ -27,13 +27,13 @@ router.post('/auth/login', async (req, res) => {
     const cliente = await db.query("find", "clientes", { correo: email, "contraseña": password }, { _id: 1 });
     if (cliente.length > 0) {
         const token = jwt.sign({ id: cliente[0]._id, userType: "cliente" }, SECRET_KEY, { expiresIn });
-        return res.json({ token });
+        return res.json({ token, userType: "cliente"  });
     }else{
     // Busca el usuario en la colección de proveedores
     const proveedor = await db.query("find", "proveedores", { correo: email, "contraseña": password }, { _id: 1 });
     if (proveedor.length > 0) {
         const token = jwt.sign({ id: proveedor[0]._id, userType: "proveedor" }, SECRET_KEY, { expiresIn });
-        return res.json({ token });
+        return res.json({ token, userType: "proveedor"  });
     }}
 
     // Si no se encuentra el usuario
@@ -59,7 +59,7 @@ router.get('/auth/me', verifyToken, async (req, res) => {
 
     if (userType === 'cliente') {
         // Busca la información del cliente
-        const cliente = await db.query("find", "clientes", { _id: db.objectID(id) }, { _id: 1, nombre: 1, apellido: 1, correo: 1, telefono: 1, created_at: 1 , imagen: 1 ,  active: 1 });
+        const cliente = await db.query("find", "clientes", { _id: db.objectID(id) }, { _id: 1, nombre: 1, correo: 1, telefono: 1, created_at: 1 , imagen: 1 ,  active: 1 });
         if (cliente.length > 0) {
             return res.json(cliente[0]);
         }
@@ -197,7 +197,7 @@ router.get('/getCarrito/:correo', verifyToken , async (req,res) => {
     }
   });
 
-  router.get('/agregarCarrito/:id_producto/:idCarrito', async (req, res) => {
+  router.get('/agregarCarrito/:id_producto/:idCarrito', verifyToken, async (req, res) => {
     const id_producto = req.params.id_producto;
     const id_carrito = req.params.idCarrito;
   
@@ -232,6 +232,27 @@ router.get('/getCarrito/:correo', verifyToken , async (req,res) => {
       res.status(500).json({status: 'error', message: 'Ocurrió un error en el servidor.'});
     }
   });
+
+  router.post('/changePassword/:previousPass/:newPass/:userType/:id', verifyToken, async (req, res) => {
+    const previousPass = req.params.previousPass;
+    const newPass = req.params.newPass;
+    const userType = req.params.userType
+    const id_usuario = req.params.id
+
+    try{
+
+        const resultado = await db.query("update", userType ,{_id: db.objectID(id_usuario) ,"contraseña":previousPass},{$set:{"contraseña":newPass}})
+        
+        if(resultado.modifiedCount>0){
+            res.json({status: 'success'});
+        }
+
+    }catch (error){
+        
+        console.error('Error en la consulta:', error);
+        return res.status(500).send("Error al actualizar la contraseña");
+    }
+});
   
 router.post('/auth/register', async (req, res) => {
     const { nombre, apellido, telefono, correo, contraseña, confirm_password, userType, nombre_empresa, rfc, direccion_comercial, regimen_fiscal, correo_corporativo } = req.body;
