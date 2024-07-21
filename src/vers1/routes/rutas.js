@@ -76,6 +76,72 @@ router.get('/auth/me', verifyToken, async (req, res) => {
     res.sendStatus(404);
 });
 
+router.post('/auth/register', async (req, res) => {
+    const { nombre, apellido, telefono, correo, contraseña, confirm_password, userType, nombre_empresa, rfc, direccion_comercial, regimen_fiscal, correo_corporativo } = req.body;
+    if (contraseña === confirm_password) {
+        const collection = userType === 'Usuario' ? "clientes" : "proveedores";
+        const queryCondition = userType === 'Usuario'
+            ? { $or: [{ telefono: telefono }, { correo: correo }] }
+            : { $or: [{ telefono: telefono }, { correo: correo }, { rfc: rfc }] };
+
+        const usuarios = await db.query("find", collection, queryCondition, {});
+        if (usuarios.length > 0) {
+            if (userType === 'Usuario') {
+                return res.status(400).json({ message: 'Correo o teléfono ya registrado en otra cuenta' });
+            }else{
+                return res.status(400).json({ message: 'Correo, teléfono o RFC ya registrado en otra cuenta' });
+            }
+            
+        } else {
+            let clave = "";
+            const clavesExistentes = await db.query("find", "proveedores", {}, { clave: 1, _id: 0 });
+                let claves = clavesExistentes.map(item => item.clave);
+                
+                clave = crearClave();
+                while (claves.includes(clave)) {
+                    clave = crearClave();
+                }
+
+            const queryObject = userType === 'Usuario' ? {
+                nombre: nombre + " " + apellido,
+                //apellido: apellido,
+                correo: correo,
+                contraseña: contraseña,
+                telefono: telefono,
+                created_at: new Date(),
+                imagen: '../assets/images/fotosCliente/FoxClient.jpeg',
+                active: true,
+                proveedores: []
+            } : {
+                nombre: nombre_empresa,
+                correo: correo_corporativo,
+                contraseña: contraseña,
+                telefono: telefono,
+                created_at: new Date(),
+                imagen: '../assets/images/fotosProveedor/cubiertos.png',
+                active: true,
+                regimen_fiscal: regimen_fiscal,
+                direccion: direccion_comercial,
+                calif: 0,
+                rfc: rfc,
+                min_espera: 15,
+                clave: clave
+            };
+
+            const result = await db.query("insert", collection, queryObject, {});
+
+            if(userType === 'Usuario'){
+                const nuevoCarrito = await db.query("insert","pedidos",{cliente: correo ,estado:"Carrito",proveedor:"",especificaciones:"",descripcion:[],especificaciones:""})
+            console.log(nuevoCarrito)
+            }
+            
+            return res.status(201).json({ message: 'Usuario registrado con éxito', userId: result.insertedId });
+        }
+    } else {
+        return res.status(400).json({ message: 'La contraseña no fue confirmada correctamente' });
+    }
+});
+
 router.get('/comedores', verifyToken, async (req, res) => {
     const { id, userType } = req.user;
 
@@ -254,112 +320,38 @@ router.get('/getCarrito/:correo', verifyToken , async (req,res) => {
     }
 });
   
-router.post('/auth/register', async (req, res) => {
-    const { nombre, apellido, telefono, correo, contraseña, confirm_password, userType, nombre_empresa, rfc, direccion_comercial, regimen_fiscal, correo_corporativo } = req.body;
-    if (contraseña === confirm_password) {
-        const collection = userType === 'Usuario' ? "clientes" : "proveedores";
-        const queryCondition = userType === 'Usuario'
-            ? { $or: [{ telefono: telefono }, { correo: correo }] }
-            : { $or: [{ telefono: telefono }, { correo: correo }, { rfc: rfc }] };
+router.post('/deleteAccount/:password/:id/:userType', verifyToken, async (req, res) => {
+    const enteredPassword = req.params.password;
+    const id = req.params.id;
+    const userType = req.params.userType
 
-        const usuarios = await db.query("find", collection, queryCondition, {});
-        if (usuarios.length > 0) {
-            if (userType === 'Usuario') {
-                return res.status(400).json({ message: 'Correo o teléfono ya registrado en otra cuenta' });
-            }else{
-                return res.status(400).json({ message: 'Correo, teléfono o RFC ya registrado en otra cuenta' });
-            }
-            
-        } else {
-            let clave = "";
-            const clavesExistentes = await db.query("find", "proveedores", {}, { clave: 1, _id: 0 });
-                let claves = clavesExistentes.map(item => item.clave);
-                
-                clave = crearClave();
-                while (claves.includes(clave)) {
-                    clave = crearClave();
+    console.log(enteredPassword);
+    console.log(id);
+    console.log(userType);
+
+    if(userType==='proveedores'){
+        //borra la cuenta que coincida en id y contraseña en proveedores
+        const resultado = await db.query("deleteOne","proveedores",{_id: db.objectID(id),"contraseña":enteredPassword})
+        if(resultado.deletedCount>0){
+            const resBorrarProducts = await db.query("deleteMany","productos",{id_proveedor: db.objectID(id)})
+            if(resBorrarProducts.acknowledged){
+                const resBrkLink = await db.query("update","clientes",{},{$pull:{proveedores:{id_proveedor:db.objectID(id)}}})
+                if(resBrkLink.acknowledged){
+                    res.json({status: 'success'});
+                }else{
+                    res.status(500).send("Error al desenlazar el proveedor con sus clientes")
                 }
-
-            const queryObject = userType === 'Usuario' ? {
-                nombre: nombre + " " + apellido,
-                //apellido: apellido,
-                correo: correo,
-                contraseña: contraseña,
-                telefono: telefono,
-                created_at: new Date(),
-                imagen: '../assets/images/fotosCliente/FoxClient.jpeg',
-                active: true,
-                proveedores: []
-            } : {
-                nombre: nombre_empresa,
-                correo: correo_corporativo,
-                contraseña: contraseña,
-                telefono: telefono,
-                created_at: new Date(),
-                imagen: '../assets/images/fotosProveedor/cubiertos.png',
-                active: true,
-                regimen_fiscal: regimen_fiscal,
-                direccion: direccion_comercial,
-                calif: 0,
-                rfc: rfc,
-                min_espera: 15,
-                clave: clave
-            };
-
-            const result = await db.query("insert", collection, queryObject, {});
-
-            if(userType === 'Usuario'){
-                const nuevoCarrito = await db.query("insert","pedidos",{cliente: correo ,estado:"Carrito",proveedor:"",especificaciones:"",descripcion:[],especificaciones:""})
-            console.log(nuevoCarrito)
+            }else{
+                res.status(500).send("Error al borrar los productos del proveedor");
             }
-            
-            return res.status(201).json({ message: 'Usuario registrado con éxito', userId: result.insertedId });
+        }else{
+            res.status(500).send("Error al borrar la cuenta");
         }
-    } else {
-        return res.status(400).json({ message: 'La contraseña no fue confirmada correctamente' });
+    }else{
+        //aquí va para el cliente
     }
+    
 });
 
+
 module.exports = router;
-
-
-// router.get('/login/:email/:password', async (req, res) => {
-//     const { email, password } = req.params;
-
-//     const cliente = await db.query("find","clientes",{correo:email,"contraseña":password},{_id:1})
-//     console.log(cliente)
-//     if(cliente.length>0){
-//         res.json({id:cliente[0]._id,email:email,userType: "cliente",logged:true})
-//     }else{
-//         const proveedor = await db.query("find","proveedores",{correo:email,password:password},{_id:1})
-//         if(proveedor.length>0){
-//             res.json({id:proveedor[0]._id,email:email,userType: "proveedor",logged:true})
-//         }else{
-//             res.json({logged:false})
-//         }
-//     }
-
-// });
-
-//  router.get('/comedores/:id',async (req,res)=>{
-//      console.log('inicia el query para mostrar los comedores')
-//      const id = req.params.id
-//      const respuesta = await db.query("find","clientes",{_id:db.objectID(id)},{"proveedores.id_proveedor":1,_id:0})
-//      let idsComedores = []
-//      if(respuesta[0].proveedores.length>0){
-//          respuesta[0].proveedores.forEach(comedor => {
-//              idsComedores.push(comedor.id_proveedor)
-//          })
-//          console.log("mostrando correos:")
-//          console.log(idsComedores)
-//          console.log("Buscando comedores:")
-//          const info = await db.query("find","proveedores",{_id:{$in:idsComedores}},{_id:1,nombre:1,calif:1,min_espera:1,imagen:1,active:1})
-        
-        
-//         res.json(info)
-//      }else{
-//          res.json({})
-//      }
-//  })
-
-//     module.exports = router
