@@ -348,7 +348,19 @@ router.post('/deleteAccount/:password/:id/:userType', verifyToken, async (req, r
             res.status(500).send("Error al borrar la cuenta");
         }
     }else{
-        //aquí va para el cliente
+        //borra la cuenta que coincida en id y contraseña en proveedores
+        const infoCliente = await db.query("find","clientes",{_id: db.objectID(id),"contraseña":enteredPassword},{_id:0,correo:1})
+        const resultado = await db.query("deleteOne","clientes",{_id: db.objectID(id),"contraseña":enteredPassword})
+        if(resultado.deletedCount>0){
+            const resBorrarCarrito = await db.query("deleteMany","pedidos",{cliente:infoCliente[0].correo,estdo:"Carrito"})
+            if(resBorrarCarrito.acknowledged){
+                    res.json({status: 'success'});
+            }else{
+                res.status(500).send("Error al borrar el carrito del cliente");
+            }
+        }else{
+            res.status(500).send("Error al borrar la cuenta");
+        }
     }
     
 });
