@@ -348,7 +348,19 @@ router.post('/deleteAccount/:password/:id/:userType', verifyToken, async (req, r
             res.status(500).send("Error al borrar la cuenta");
         }
     }else{
-        //aquí va para el cliente
+        //borra la cuenta que coincida en id y contraseña en proveedores
+        const infoCliente = await db.query("find","clientes",{_id: db.objectID(id),"contraseña":enteredPassword},{_id:0,correo:1})
+        const resultado = await db.query("deleteOne","clientes",{_id: db.objectID(id),"contraseña":enteredPassword})
+        if(resultado.deletedCount>0){
+            const resBorrarCarrito = await db.query("deleteMany","pedidos",{cliente:infoCliente[0].correo,estdo:"Carrito"})
+            if(resBorrarCarrito.acknowledged){
+                    res.json({status: 'success'});
+            }else{
+                res.status(500).send("Error al borrar el carrito del cliente");
+            }
+        }else{
+            res.status(500).send("Error al borrar la cuenta");
+        }
     }
     
 });
@@ -373,7 +385,7 @@ router.post('/edit/:campo', verifyToken, async (req, res) => {
     if (userType === 'cliente') {
         // Actualiza la información del cliente
         const cliente = await db.query("update", "clientes", { _id: db.objectID(id) },{$set:data});
-        if (cliente.acknowledged > 0) {
+        if (cliente.modifiedCount > 0) {
             return res.status(201).json({ message: `Campo ${campo} actualizado con éxito, nuevo valor: ${newValue}`});
         }else{
             res.sendStatus(404);
@@ -382,8 +394,8 @@ router.post('/edit/:campo', verifyToken, async (req, res) => {
 
     if (userType === 'proveedor') {
         // Actualiza la info del proveedor
-        const proveedor = await db.query("find", "proveedores", { _id: db.objectID(id) }, {$set:data});
-        if (proveedor.acknowledged > 0) {
+        const proveedor = await db.query("update", "proveedores", { _id: db.objectID(id) }, {$set:data});
+        if (proveedor.modifiedCount > 0) {
             return res.status(201).json({ message: `Campo ${campo} actualizado con éxito, nuevo valor: ${newValue}`});
         }else{
             res.sendStatus(404);
