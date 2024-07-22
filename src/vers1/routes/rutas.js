@@ -362,8 +362,56 @@ router.post('/deleteAccount/:password/:id/:userType', verifyToken, async (req, r
             res.status(500).send("Error al borrar la cuenta");
         }
     }
-    
 });
 
+router.get('/getProductos/:idCarrito', verifyToken, async (req,res) => {
+    console.log('inicia la consulta del carrito')
+    const idCarrito = req.params.idCarrito
+    console.log(idCarrito)
+    const infoProductos = await db.query("aggregation","pedidos",[{$match:{_id:db.objectID(idCarrito)}},{$unwind:"$descripcion"},{$lookup:{from:"productos",localField:"descripcion.producto.id_producto",foreignField:"_id",as:"infoProducto"}},{$project:{_id:0,cantidad:"$descripcion.cantidad",infoProducto:1}},{$unwind:"$infoProducto"},{$project:{cantidad:1,_id:"$infoProducto._id",nombre:"$infoProducto.nombre",precio:"$infoProducto.precio",imagen:"$infoProducto.imagen"}}])
+
+    //const infoProductos = await db.query("find","productos",{_id:{$in:ids[0].ids}},{_id:1,nombre:1,imagen:1,precio:1})
+
+    res.json(infoProductos)
+})
+
+router.get('/deleteProducto/:idProducto/:idCarrito', verifyToken, async (req,res) => {
+    const idProducto = req.params.idProducto;
+    const idCarrito = req.params.idCarrito;
+    console.log(idProducto)
+    console.log(idCarrito)
+
+    try{
+        console.log('Inicia la eliminacion del producto del carrito')
+        const resultado = await db.query("update","pedidos",{_id:db.objectID(idCarrito)},{$pull:{descripcion:{"producto.id_producto":db.objectID(idProducto)}}})
+        if(resultado.acknowledged){
+            res.json({status: 'success'});
+        }
+    }catch(error){
+        console.error("Error deleting from cart:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+})
+
+router.get('/modifyQuantityProducto/:idProducto/:idCarrito/:cantidad', verifyToken, async (req,res) => {
+    const idProducto = req.params.idProducto;
+    const cantidad = +req.params.cantidad;
+    const idCarrito = req.params.idCarrito;
+
+    console.log(idProducto)
+    console.log(idCarrito)
+    console.log(cantidad)
+
+    try{
+        console.log('Inicia el actualizar')
+        resultado = await db.query("update","pedidos",{_id:db.objectID(idCarrito)},{$set:{"descripcion.$[elem].cantidad":cantidad}},{arrayFilters:[{"elem.producto.id_producto":db.objectID(idProducto)}]})
+        if(resultado.acknowledged){
+            res.json({status: 'success'});
+        }
+    }catch(error){
+        console.error("Error changing quantity:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+})
 
 module.exports = router;
