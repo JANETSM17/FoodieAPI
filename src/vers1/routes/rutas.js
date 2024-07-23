@@ -414,4 +414,25 @@ router.get('/modifyQuantityProducto/:idProducto/:idCarrito/:cantidad', verifyTok
     }
 })
 
+router.post('/editInfoClient/:nombre/:telefono/:userType/:id', verifyToken, async (req, res) => {
+    const nombre = req.params.nombre;
+    const telefono = req.params.telefono;
+    const userType = req.params.userType
+    const id_usuario = req.params.id
+
+    try{
+
+        const resultado = await db.query("update", userType ,{_id: db.objectID(id_usuario)},{$set:{"telefono":telefono, "nombre": nombre}})
+        
+        if(resultado.modifiedCount>0){
+            res.json({status: 'success'});
+        }
+
+    }catch (error){
+        
+        console.error('Error en la consulta:', error);
+        return res.status(500).send("Error al actualizar la información");
+    }
+});
+
 module.exports = router;
