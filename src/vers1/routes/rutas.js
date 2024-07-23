@@ -362,47 +362,73 @@ router.post('/deleteAccount/:password/:id/:userType', verifyToken, async (req, r
             res.status(500).send("Error al borrar la cuenta");
         }
     }
-    
 });
 
+router.get('/getProductos/:idCarrito', verifyToken, async (req,res) => {
+    console.log('inicia la consulta del carrito')
+    const idCarrito = req.params.idCarrito
+    console.log(idCarrito)
+    const infoProductos = await db.query("aggregation","pedidos",[{$match:{_id:db.objectID(idCarrito)}},{$unwind:"$descripcion"},{$lookup:{from:"productos",localField:"descripcion.producto.id_producto",foreignField:"_id",as:"infoProducto"}},{$project:{_id:0,cantidad:"$descripcion.cantidad",infoProducto:1}},{$unwind:"$infoProducto"},{$project:{cantidad:1,_id:"$infoProducto._id",nombre:"$infoProducto.nombre",precio:"$infoProducto.precio",imagen:"$infoProducto.imagen"}}])
 
-// Ruta para obtener los datos del usuario autenticado
-router.post('/edit/:campo', verifyToken, async (req, res) => {
-    const { id, userType } = req.user;
-    const {campo} = req.params //el campo que se va a editar
-    const {newValue} = req.body //el valor que se le va a dar
-    let data = {} //objeto que se utiliza para hacer el update
+    //const infoProductos = await db.query("find","productos",{_id:{$in:ids[0].ids}},{_id:1,nombre:1,imagen:1,precio:1})
 
-    if(campo=="min_espera"){
-        data[campo] = +newValue //guarda el valor numerico, no el string del numero
-    }else if(campo == "active"){
-        data[campo] = newValue=="true"?true:false //guarda un valor booleano
-    }else{
-        data[campo] = newValue //guarda el valor como string
-    }
-    
+    res.json(infoProductos)
+})
 
-    if (userType === 'cliente') {
-        // Actualiza la información del cliente
-        const cliente = await db.query("update", "clientes", { _id: db.objectID(id) },{$set:data});
-        if (cliente.modifiedCount > 0) {
-            return res.status(201).json({ message: `Campo ${campo} actualizado con éxito, nuevo valor: ${newValue}`});
-        }else{
-            res.sendStatus(404);
+router.get('/deleteProducto/:idProducto/:idCarrito', verifyToken, async (req,res) => {
+    const idProducto = req.params.idProducto;
+    const idCarrito = req.params.idCarrito;
+    console.log(idProducto)
+    console.log(idCarrito)
+
+    try{
+        console.log('Inicia la eliminacion del producto del carrito')
+        const resultado = await db.query("update","pedidos",{_id:db.objectID(idCarrito)},{$pull:{descripcion:{"producto.id_producto":db.objectID(idProducto)}}})
+        if(resultado.acknowledged){
+            res.json({status: 'success'});
         }
+    }catch(error){
+        console.error("Error deleting from cart:", error);
+        res.status(500).json({ message: "Internal server error" });
     }
+})
 
-    if (userType === 'proveedor') {
-        // Actualiza la info del proveedor
-        const proveedor = await db.query("update", "proveedores", { _id: db.objectID(id) }, {$set:data});
-        if (proveedor.modifiedCount > 0) {
-            return res.status(201).json({ message: `Campo ${campo} actualizado con éxito, nuevo valor: ${newValue}`});
-        }else{
-            res.sendStatus(404);
+router.get('/modifyQuantityProducto/:idProducto/:idCarrito/:cantidad', verifyToken, async (req,res) => {
+    const idProducto = req.params.idProducto;
+    const cantidad = +req.params.cantidad;
+    const idCarrito = req.params.idCarrito;
+
+    console.log(idProducto)
+    console.log(idCarrito)
+    console.log(cantidad)
+
+    try{
+        console.log('Inicia el actualizar')
+        resultado = await db.query("update","pedidos",{_id:db.objectID(idCarrito)},{$set:{"descripcion.$[elem].cantidad":cantidad}},{arrayFilters:[{"elem.producto.id_producto":db.objectID(idProducto)}]})
+        if(resultado.acknowledged){
+            res.json({status: 'success'});
         }
+    }catch(error){
+        console.error("Error changing quantity:", error);
+        res.status(500).json({ message: "Internal server error" });
     }
+})
 
-    res.sendStatus(403);
-});
+router.get('/saveImage/:mail/:userType/:image', verifyToken , async (req,res) => {
+    const {image,mail,userType} = req.params
+    const coleccion = userType=="cliente"?"clientes":"proveedores"
+    try {
+        const resultado = await db.query("update",coleccion,{correo: mail},{$set:{imagen:image}});
+        if (resultado.matchedCount > 0) {
+            console.log("Se actualizo la ruta de la imagen del usuario: " + mail);
+            res.json({status: 'success'});
+        } else {
+            res.status(404).json({ message: "No se encontro el usuario" });
+        }
+    } catch (error) {
+        console.error("Error actualizando ruta:", error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
 
 module.exports = router;
