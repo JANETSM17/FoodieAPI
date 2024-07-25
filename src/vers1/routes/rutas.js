@@ -435,4 +435,115 @@ router.post('/editInfoClient/:nombre/:telefono/:userType/:id', verifyToken, asyn
     }
 });
 
+router.get('/confirmarFoodieBox/:idCarrito', verifyToken, async (req, res) => {
+    const id_carrito = req.params.idCarrito;
+  
+    try {
+      const proveedorPedido = await db.query("find", "pedidos", { _id: db.objectID(id_carrito) }, { proveedor: 1 });
+  
+      let dateLimit = new Date();
+      console.log('Esta es la fecha actual', dateLimit);
+      dateLimit.setMinutes(dateLimit.getMinutes() - 5);
+  
+      const ping = await db.query("aggregation", "proveedores", [
+        { $match: { correo: proveedorPedido.proveedor } },
+        { $lookup: { from: "foodieboxes", localField: "foodiebox", foreignField: "numSerie", as: "infoFoodieBox" } },
+        { $project: { ping: "$infoFoodieBox.ping" } },
+        { $unwind: "$ping" }
+      ]);
+  
+      const isActive = ping.length > 0 && ping[0].ping > dateLimit;
+
+      console.log(isActive);
+  
+      res.json({ status: isActive });
+    } catch (error) {
+      console.error('Error confirming FoodieBox:', error);
+      res.status(500).json({ status: false, error: 'Internal Server Error' });
+    }
+  });
+
+  router.get('/confirmarPedidos/:email', verifyToken, async (req,res) => {
+    const email = req.params.email
+    console.log('inicia la confirmacion')
+    const estados = ["En proceso","Listo para recoger"]
+    const resultado = await db.query("find","pedidos",{cliente:email,estado:{$in:estados}})
+    console.log(resultado.length)
+    res.json({cuenta:resultado.length})
+})
+
+router.get('/confirmarEspera/:idCarrito', verifyToken, async (req, res) => {
+    const carrito = req.params.idCarrito;
+    console.log('Inicia la confirmación del tiempo de espera');
+
+    try {
+        const resultado = await db.query("aggregation", "pedidos", [
+            { $match: { _id: db.objectID(carrito) } },
+            { $lookup: { from: "proveedores", localField: "proveedor", foreignField: "correo", as: "proveedorInfo" } },
+            { $project: { min_espera: "$proveedorInfo.min_espera" } }
+        ]);
+
+        res.json(resultado);
+    } catch (error) {
+        console.error('Error al confirmar el tiempo de espera:', error);
+        res.status(500).json({ message: 'Error al confirmar el tiempo de espera' });
+    }
+});
+
+router.get('/enviarPedido/:idCarrito/:espera/:especificaciones/:pickup/:email', verifyToken, async (req, res) => {
+    try {
+        const idCarrito = req.params.idCarrito;
+        const espera = +req.params.espera;
+        const especificaciones = decodeURI(req.params.especificaciones);
+        const pickup = req.params.pickup;
+        const email = req.params.email;
+        let clave;
+        
+        if (pickup === "mostrador") {
+            clave = "N/A";
+        } else {
+            const clavesEnUso = await db.query("find", "pedidos", {}, { clave: 1, _id: 0 });
+            clave = crearClave();
+            while (clavesEnUso.some(elem => elem.clave == clave)) {
+                clave = crearClave();
+            }
+        }
+
+        // if (especificaciones.length==0){
+        //     especificaciones="Pedido sin especificaciones especiales";
+        //   }
+
+        console.log('Inicia el envío del pedido');
+        let date = new Date();
+        console.log(date);
+        date.setMinutes(date.getMinutes() + espera);
+        console.log(date);
+
+        const resultado = await db.query("update", "pedidos", { _id: db.objectID(idCarrito) }, {
+            $set: {
+                estado: "En proceso",
+                entrega: date,
+                especificaciones: especificaciones,
+                pickup: pickup,
+                clave: clave
+            }
+        });
+
+        const nuevoCarrito = await db.query("insert", "pedidos", {
+            cliente: email,
+            estado: "Carrito",
+            proveedor: "",
+            especificaciones: "",
+            descripcion: [],
+            especificaciones: ""
+        });
+
+        console.log(nuevoCarrito);
+        res.json(resultado);
+    } catch (error) {
+        console.error('Error al enviar el pedido:', error);
+        res.status(500).json({ error: 'Error al enviar el pedido' });
+    }
+});
+  
 module.exports = router;
