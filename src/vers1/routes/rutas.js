@@ -80,12 +80,18 @@ router.post('/auth/register', async (req, res) => {
     const { nombre, apellido, telefono, correo, contraseña, confirm_password, userType, nombre_empresa, rfc, direccion_comercial, regimen_fiscal, correo_corporativo } = req.body;
     if (contraseña === confirm_password) {
         const collection = userType === 'Usuario' ? "clientes" : "proveedores";
-        const queryCondition = userType === 'Usuario'
-            ? { $or: [{ telefono: telefono }, { correo: correo }] }
-            : { $or: [{ telefono: telefono }, { correo: correo }, { rfc: rfc }] };
 
-        const usuarios = await db.query("find", collection, queryCondition, {});
-        if (usuarios.length > 0) {
+        const clientes = await db.query("find","clientes",{$or:[{telefono:telefono},{correo:correo}]},{})
+        let proveedores = null
+
+        if(userType === 'Usuario'){
+            proveedores = await db.query("find","proveedores",{$or:[{telefono:telefono},{correo:correo}]})
+        }else{
+            proveedores = await db.query("find","proveedores",{$or:[{telefono:telefono},{correo:correo},{rfc:rfc},]})
+        }
+        
+
+        if (clientes.length > 0 || proveedores.length > 0) {
             if (userType === 'Usuario') {
                 return res.status(400).json({ message: 'Correo o teléfono ya registrado en otra cuenta' });
             }else{
@@ -152,7 +158,7 @@ router.get('/comedores', verifyToken, async (req, res) => {
             cliente[0].proveedores.forEach(comedor => {
                 idsComedores.push(comedor.id_proveedor);
             });
-            const info = await db.query("find", "proveedores", { _id: { $in: idsComedores } }, { _id: 1, nombre: 1, calif: 1, min_espera: 1, imagen: 1 });
+            const info = await db.query("find", "proveedores", { _id: { $in: idsComedores }, active: true }, { _id: 1, nombre: 1, calif: 1, min_espera: 1, imagen: 1 });
             return res.json(info);
         } else {
             return res.json([]);
@@ -320,10 +326,11 @@ router.get('/getCarrito/:correo', verifyToken , async (req,res) => {
     }
 });
   
-router.post('/deleteAccount/:password/:id/:userType', verifyToken, async (req, res) => {
+router.post('/deleteAccount/:password/:id/:userType/:email', verifyToken, async (req, res) => {
     const enteredPassword = req.params.password;
     const id = req.params.id;
     const userType = req.params.userType
+    const email = req.params.email
 
     console.log(enteredPassword);
     console.log(id);
@@ -331,9 +338,9 @@ router.post('/deleteAccount/:password/:id/:userType', verifyToken, async (req, r
 
     if(userType==='proveedores'){
         //borra la cuenta que coincida en id y contraseña en proveedores
-        const resultado = await db.query("deleteOne","proveedores",{_id: db.objectID(id),"contraseña":enteredPassword})
+        const resultado = await db.query("deleteOne","proveedores",{_id:db.objectID(id),"contraseña":enteredPassword})
         if(resultado.deletedCount>0){
-            const resBorrarProducts = await db.query("deleteMany","productos",{id_proveedor: db.objectID(id)})
+            const resBorrarProducts = await db.query("deleteMany","productos",{id_proveedor:db.objectID(id)})
             if(resBorrarProducts.acknowledged){
                 const resBrkLink = await db.query("update","clientes",{},{$pull:{proveedores:{id_proveedor:db.objectID(id)}}})
                 if(resBrkLink.acknowledged){
@@ -348,18 +355,17 @@ router.post('/deleteAccount/:password/:id/:userType', verifyToken, async (req, r
             res.status(500).send("Error al borrar la cuenta");
         }
     }else{
-        //borra la cuenta que coincida en id y contraseña en proveedores
-        const infoCliente = await db.query("find","clientes",{_id: db.objectID(id),"contraseña":enteredPassword},{_id:0,correo:1})
-        const resultado = await db.query("deleteOne","clientes",{_id: db.objectID(id),"contraseña":enteredPassword})
+        const resultado = await db.query("deleteOne","clientes",{_id:db.objectID(id),"contraseña":enteredPassword})
         if(resultado.deletedCount>0){
-            const resBorrarCarrito = await db.query("deleteMany","pedidos",{cliente:infoCliente[0].correo,estdo:"Carrito"})
-            if(resBorrarCarrito.acknowledged){
-                    res.json({status: 'success'});
+            const dltBag = await db.query("deleteOne","pedidos",{cliente:email,estado:{$in:["Carrito","En proceso", "Listo para recoger"]}})
+            if (dltBag.deletedCount>0){
+                res.json({status: 'success'});
             }else{
-                res.status(500).send("Error al borrar el carrito del cliente");
+                return res.status(500).send("Error al borrar el carrito");
             }
+            
         }else{
-            res.status(500).send("Error al borrar la cuenta");
+            return res.status(500).send("Error al borrar la cuenta");
         }
     }
 });
@@ -414,26 +420,114 @@ router.get('/modifyQuantityProducto/:idProducto/:idCarrito/:cantidad', verifyTok
     }
 })
 
-router.post('/editInfoClient/:nombre/:telefono/:userType/:id', verifyToken, async (req, res) => {
+router.post('/editInfoClient/:nombre/:telefono/:id', verifyToken, async (req, res) => {
     const nombre = req.params.nombre;
     const telefono = req.params.telefono;
-    const userType = req.params.userType
-    const id_usuario = req.params.id
+    const id_usuario = req.params.id;
 
-    try{
-
-        const resultado = await db.query("update", userType ,{_id: db.objectID(id_usuario)},{$set:{"telefono":telefono, "nombre": nombre}})
-        
-        if(resultado.modifiedCount>0){
-            res.json({status: 'success'});
+    try {
+        // Verificar si el teléfono ya está asociado con otra cuenta
+        const clientes = await db.query("find", "clientes", { telefono: telefono, _id: { $ne: db.objectID(id_usuario) } }, {});
+        const proveedores = await db.query("find", "proveedores", { telefono: telefono, _id: { $ne: db.objectID(id_usuario) } }, {});
+    
+        if (clientes.length > 0 || proveedores.length > 0) {
+            return res.status(400).json({ status: 'error', message: 'El telefono que ingresaste ya está asociado a otra cuenta' });
         }
 
-    }catch (error){
-        
+        // Realizar la actualización si el teléfono no está en uso
+        const resultado = await db.query("update", "clientes", { _id: db.objectID(id_usuario) }, { $set: { "telefono": telefono, "nombre": nombre } });
+
+        if (resultado.modifiedCount > 0) {
+            res.json({ status: 'success' });
+        } else {
+            res.status(500).send("Error al actualizar la información");
+        }
+
+    } catch (error) {
         console.error('Error en la consulta:', error);
         return res.status(500).send("Error al actualizar la información");
     }
 });
+
+router.post('/editInfoProveedor/:direccion/:telefono/:id', verifyToken, async (req, res) => {
+    const direccion = decodeURIComponent(req.params.direccion);
+    const telefono = decodeURIComponent(req.params.telefono);
+    const id_usuario = decodeURIComponent(req.params.id);
+  
+    try {
+
+      // Verificar si el teléfono ya está asociado con otra cuenta
+      const clientes = await db.query("find", "clientes", { telefono: telefono, _id: { $ne: db.objectID(id_usuario) } }, {});
+      const proveedores = await db.query("find", "proveedores", { telefono: telefono, _id: { $ne: db.objectID(id_usuario) } }, {});
+  
+      if (clientes.length > 0 || proveedores.length > 0) {
+        return res.status(400).json({ status: 'error', message: 'El telefono que ingresaste ya está asociado a otra cuenta' });
+      }
+  
+      // Realizar la actualización si el teléfono no está en uso
+      const resultado = await db.query("update", "proveedores", { _id: db.objectID(id_usuario) }, { $set: { "telefono": telefono, "direccion": direccion } });
+  
+      if (resultado.modifiedCount > 0) {
+        res.json({ status: 'success' });
+      } else {
+        res.status(500).json({ status: 'error', message: 'Error al actualizar la información' });
+      }
+    } catch (error) {
+      console.error('Error en la consulta:', error);
+      res.status(500).json({ status: 'error', message: 'Error al actualizar la información' });
+    }
+  });
+
+  router.post('/editTimePreparation/:time/:id', verifyToken, async (req, res) => {
+    const timePreparation = +req.params.time; 
+    const id_usuario = req.params.id;
+
+    try {
+        const resultado = await db.query("update", "proveedores", { _id: db.objectID(id_usuario) }, { $set: { "min_espera": timePreparation } });
+
+        if (resultado.modifiedCount > 0) {
+            res.json({ status: 'success' });
+        } 
+
+    } catch (error) {
+        console.error('Error en la consulta:', error);
+        return res.status(400).json({ status: 'error', message: 'Error al cambiar el teimpo de preparación, ingresa un numero valido' });
+    }
+});
+
+router.post('/editClave/:newCode/:id', verifyToken, async (req, res) => {
+    const newClave = req.params.newCode; 
+    const id_usuario = req.params.id;
+
+    console.log('Esta es la nueva clave', newClave)
+
+        // Primero verifica si la nueva clave ya existe
+        const claveExistente = await db.query("find", "proveedores", 
+            { clave: newClave, _id: { $ne: db.objectID(id_usuario) } }, 
+            { clave: 1, _id: 0 }
+        );
+
+        console.log('Clave existente:', claveExistente);
+
+        if (claveExistente.length > 0) {
+            // Si la clave ya existe, retorna un error
+            return res.status(400).json({ status: 'error', message: 'Esa clave ya le pertenece a otro proveedor' });
+        }
+
+        const resultado = await db.query("update", "proveedores", { _id: db.objectID(id_usuario) }, { $set: { "clave": newClave } });
+
+        if (resultado.modifiedCount > 0) {
+            const resBrkLink = await db.query("update","clientes",{},{$pull:{proveedores:{id_proveedor:db.objectID(id_usuario)}}})
+                if(resBrkLink.acknowledged){
+                    res.json({status: 'success'});
+                }else{
+                    res.status(400).json({ status: 'error', message: 'Error al desenlazar el proveedor con sus clientes' });
+                }
+        } else {
+            res.status(400).json({ status: 'error', message: 'No se pudo actualizar la clave' });
+        }
+});
+
 
 router.get('/confirmarFoodieBox/:idCarrito', verifyToken, async (req, res) => {
     const id_carrito = req.params.idCarrito;
