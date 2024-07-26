@@ -640,39 +640,71 @@ router.get('/enviarPedido/:idCarrito/:espera/:especificaciones/:pickup/:email', 
     }
 });
 
-router.get('/getPedidosHist/:correo', verifyToken, async (req, res) => {
+router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) => {
     try {
       const email = req.params.correo;
       const estados = ["Entregado"];
-      const infoPedidos = await db.query("aggregation", "pedidos", [
-        { $match: { proveedor: email, estado: { $in: estados } } },
-        { $lookup: { from: "clientes", localField: "cliente", foreignField: "correo", as: "infoCliente" } }
-      ]);
-  
-      let resultado = [];
-      infoPedidos.forEach(pedido => {
-        let total = 0;
-        let descripcion = "";
-        pedido.descripcion.forEach(articulo => {
-          total += (articulo.producto.precio * articulo.cantidad);
-          descripcion += `${articulo.producto.nombre} x${articulo.cantidad},`;
+      const userType = req.params.userType
+
+      if(userType === "proveedor"){
+
+        const infoPedidos = await db.query("aggregation", "pedidos", [
+            { $match: { proveedor: email, estado: { $in: estados } } },
+            { $lookup: { from: "clientes", localField: "cliente", foreignField: "correo", as: "infoCliente" } }
+        ]);
+    
+        let resultado = [];
+        infoPedidos.forEach(pedido => {
+            let total = 0;
+            let descripcion = "";
+            pedido.descripcion.forEach(articulo => {
+            total += (articulo.producto.precio * articulo.cantidad);
+            descripcion += `${articulo.producto.nombre} x${articulo.cantidad},`;
+            });
+            descripcion = descripcion.slice(0, -1);
+            let id = pedido._id.toString();
+    
+            resultado.push({
+            _id: id,
+            numerodepedido: id.substring(id.length - 8, id.length - 2).toUpperCase(),
+            nombre: pedido.infoCliente[0].nombre,
+            total: total,
+            descripcion: descripcion,
+            hora: pedido.entrega.toLocaleString(),
+            especificaciones: pedido.especificaciones,
+            pickup: pedido.pickup
+            });
         });
-        descripcion = descripcion.slice(0, -1);
-        let id = pedido._id.toString();
-  
-        resultado.push({
-          _id: id,
-          numerodepedido: id.substring(id.length - 8, id.length - 2).toUpperCase(),
-          nombre: pedido.infoCliente[0].nombre,
-          total: total,
-          descripcion: descripcion,
-          hora: pedido.entrega.toLocaleString(),
-          especificaciones: pedido.especificaciones,
-          pickup: pedido.pickup
-        });
-      });
-  
-      res.json(resultado);
+        res.json(resultado);
+      }else{
+        const pedidosInfo = await db.query("aggregation","pedidos",[{$match:{cliente: email ,estado:{$in:estados}}},{$lookup:{from:"proveedores",localField:"proveedor",foreignField:"correo",as:"infoProveedor"}},{$project:{estado:1,descripcion:1,entrega:1,pickup:1,especificaciones:1,"infoProveedor.nombre":1,"infoProveedor.imagen":1,_id:1}},{$sort:{entrega:-1}}])
+        let resultado = []
+        let total = 0
+        pedidosInfo.forEach(pedido=>{
+            let precio = 0
+            let descripcion = ""
+            pedido.descripcion.forEach(articulo=>{
+                precio += (articulo.producto.precio*articulo.cantidad)
+                descripcion += `${articulo.producto.nombre} x${articulo.cantidad},`
+            })
+            descripcion = descripcion.slice(0,-1)
+            let id = pedido._id.toString();
+            total += precio
+            resultado.push(
+                {
+                    _id: id,
+                    total: precio,
+                    hora: pedido.entrega.toLocaleString(),
+                    ruta:pedido.infoProveedor[0].imagen,
+                    descripcion: descripcion,
+                    especificaciones: pedido.especificaciones,
+                    pickup: pedido.pickup,
+                    proveedor: pedido.infoProveedor[0].nombre
+                }
+            )
+        })
+        res.json({res:resultado,total:total})
+      }
     } catch (error) {
       console.error("Error fetching pedidos historicos:", error);
       res.status(500).json({ error: "Internal server error" });
