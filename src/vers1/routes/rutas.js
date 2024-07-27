@@ -67,7 +67,7 @@ router.get('/auth/me', verifyToken, async (req, res) => {
 
     if (userType === 'proveedor') {
         // Devuelve la info del proveedor
-        const proveedor = await db.query("find", "proveedores", { _id: db.objectID(id) }, { _id: 1, nombre: 1, correo: 1, telefono: 1, imagen: 1, direccion: 1, calif: 1, min_espera: 1, clave: 1 });
+        const proveedor = await db.query("find", "proveedores", { _id: db.objectID(id) }, { _id: 1, nombre: 1, correo: 1, telefono: 1, imagen: 1, direccion: 1, calif: 1, min_espera: 1, clave: 1,active: 1 });
         if (proveedor.length > 0) {
             return res.json(proveedor[0]);
         }
@@ -528,6 +528,19 @@ router.post('/editClave/:newCode/:id', verifyToken, async (req, res) => {
         }
 });
 
+router.post('/updateSwitchState/:id', verifyToken, async (req, res) => {
+    console.log("Inicia la actualizacion de estado")
+    const newState = req.body.newState; //===1?true:false; // Obtener el nuevo estado del cuerpo de la solicitud
+    const id = req.params.id
+    console.log('Este es el nuevo estado', newState)
+    // Actualizar el estado en la base de datos
+    const resultado = await db.query("update","proveedores",{_id:db.objectID(id)},{$set:{active:newState}})
+    if(resultado.modifiedCount>0){
+        res.json({status: 'success'});
+    }else{
+        res.status(400).json({ status: 'error', message: 'No se pudo actualizar el estado del comedor' });
+    }
+});
 
 router.get('/confirmarFoodieBox/:idCarrito', verifyToken, async (req, res) => {
     const id_carrito = req.params.idCarrito;
