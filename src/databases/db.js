@@ -49,7 +49,7 @@ async function query(type,collection,mainObject,secondObject,thirdObject) {
 
         case "update":
             console.log("Update:")
-            res = await database.collection(collection).updateOne(mainObject,secondObject,thirdObject)
+            res = await database.collection(collection).updateMany(mainObject,secondObject,thirdObject)
             await client.close()
             console.log(res)
             return res
