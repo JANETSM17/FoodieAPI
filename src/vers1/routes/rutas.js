@@ -710,5 +710,41 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
       res.status(500).json({ error: "Internal server error" });
     }
   });
+
+  router.get('/pedidosEnCurso/:id/:email', verifyToken, async (req,res) => {
+    const id = req.params.id;
+    const email = req.params.email;
+
+    console.log('inicia el query')
+    const userInfo = await db.query("find","clientes",{_id:db.objectID(id)},{nombre:1,telefono:1,_id:0})
+    const estados = ["Esperando confirmacion","En proceso","Listo para recoger","Cancelado"]
+    const pedidoInfo = await db.query("aggregation","pedidos",[{$match:{cliente: email,estado:{$in:estados}}},{$sort:{entrega:-1}},{$limit:1},{$lookup:{from:"proveedores",localField:"proveedor",foreignField:"correo",as:"infoProveedor"}},{$project:{_id:1,especificaciones:1,descripcion:1, entrega:1,estado:1,clave:1,pickup:1,nombre:"$infoProveedor.nombre",telefono:"$infoProveedor.telefono"}},{$unwind:"$nombre"},{$unwind:"$telefono"}])
+    let resultado = []
+    pedidoInfo.forEach(pedido=>{
+        let total = 0
+        let descripcion = ""
+        pedido.descripcion.forEach(articulo=>{
+            total += (articulo.producto.precio*articulo.cantidad)
+            descripcion += `${articulo.producto.nombre} x${articulo.cantidad},`
+        })
+        descripcion = descripcion.slice(0,-1)
+        let id = pedido._id.inspect()
+        resultado.push(
+            {
+                id:id.substring(id.length-8,id.length-2).toUpperCase(),
+                nombre: pedido.nombre,
+                telefono: pedido.telefono,
+                especificaciones: pedido.especificaciones,
+                total: total,
+                descripcion: descripcion,
+                entrega: pedido.entrega.toLocaleString(),
+                status: pedido.estado,
+                clave: pedido.clave,
+                pickup: pedido.pickup=="mostrador"?"Mostrador":"Foodie-box"
+            }
+        )
+    })
+    res.json(resultado)
+});
   
 module.exports = router;
