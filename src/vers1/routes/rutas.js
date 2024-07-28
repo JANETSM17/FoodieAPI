@@ -573,7 +573,7 @@ router.get('/confirmarFoodieBox/:idCarrito', verifyToken, async (req, res) => {
   router.get('/confirmarPedidos/:email', verifyToken, async (req,res) => {
     const email = req.params.email
     console.log('inicia la confirmacion')
-    const estados = ["En proceso","Listo para recoger"]
+    const estados = ["Esperando confirmacion","En proceso","Listo para recoger"]
     const resultado = await db.query("find","pedidos",{cliente:email,estado:{$in:estados}})
     console.log(resultado.length)
     res.json({cuenta:resultado.length})
@@ -685,7 +685,7 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
             descripcion: descripcion,
             hora: pedido.entrega.toLocaleString(),
             especificaciones: pedido.especificaciones,
-            pickup: pedido.pickup,
+            pickup: pedido.pickup=="mostrador"?"Mostrador":"FoodieBox",
             ruta : pedido.infoCliente[0].imagen
             });
         });
@@ -712,7 +712,7 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
                     ruta:pedido.infoProveedor[0].imagen,
                     descripcion: descripcion,
                     especificaciones: pedido.especificaciones,
-                    pickup: pedido.pickup,
+                    pickup: pedido.pickup=="mostrador"?"Mostrador":"FoodieBox",
                     proveedor: pedido.infoProveedor[0].nombre
                 }
             )
