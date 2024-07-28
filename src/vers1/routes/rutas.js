@@ -115,7 +115,7 @@ router.post('/auth/register', async (req, res) => {
                 contraseña: contraseña,
                 telefono: telefono,
                 created_at: new Date(),
-                imagen: '../assets/images/fotosCliente/FoxClient.jpeg',
+                imagen: 'https://res.cloudinary.com/foodiecloudinary/image/upload/v1722136335/FoxClient_vmriqx.jpg',
                 active: true,
                 proveedores: []
             } : {
@@ -124,7 +124,7 @@ router.post('/auth/register', async (req, res) => {
                 contraseña: contraseña,
                 telefono: telefono,
                 created_at: new Date(),
-                imagen: '../assets/images/fotosProveedor/cubiertos.png',
+                imagen: 'https://res.cloudinary.com/foodiecloudinary/image/upload/v1722136539/cubiertos_mgulnb.png',
                 active: true,
                 regimen_fiscal: regimen_fiscal,
                 direccion: direccion_comercial,
@@ -685,7 +685,8 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
             descripcion: descripcion,
             hora: pedido.entrega.toLocaleString(),
             especificaciones: pedido.especificaciones,
-            pickup: pedido.pickup
+            pickup: pedido.pickup,
+            ruta : pedido.infoCliente[0].imagen
             });
         });
         res.json(resultado);
@@ -732,7 +733,7 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
     console.log('inicia el query')
     const userInfo = await db.query("find","clientes",{_id:db.objectID(id)},{nombre:1,telefono:1,_id:0})
     const estados = ["Esperando confirmacion","En proceso","Listo para recoger","Cancelado", "Rechazado"]
-    const pedidoInfo = await db.query("aggregation","pedidos",[{$match:{cliente: email,estado:{$in:estados}}},{$sort:{entrega:-1}},{$limit:1},{$lookup:{from:"proveedores",localField:"proveedor",foreignField:"correo",as:"infoProveedor"}},{$project:{_id:1,especificaciones:1,descripcion:1, entrega:1,estado:1,clave:1,pickup:1,nombre:"$infoProveedor.nombre",telefono:"$infoProveedor.telefono"}},{$unwind:"$nombre"},{$unwind:"$telefono"}])
+    const pedidoInfo = await db.query("aggregation","pedidos",[{$match:{cliente: email,estado:{$in:estados}}},{$sort:{entrega:-1}},{$limit:1},{$lookup:{from:"proveedores",localField:"proveedor",foreignField:"correo",as:"infoProveedor"}},{$project:{_id:1,especificaciones:1,descripcion:1, entrega:1,estado:1,clave:1,pickup:1,imagen:"$infoProveedor.imagen",nombre:"$infoProveedor.nombre",telefono:"$infoProveedor.telefono"}},{$unwind:"$nombre"},{$unwind:"$telefono"},{$unwind:"$imagen"}])
     let resultado = []
     pedidoInfo.forEach(pedido=>{
         let total = 0
@@ -754,7 +755,8 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
                 entrega: pedido.entrega.toLocaleString(),
                 status: pedido.estado,
                 clave: pedido.clave,
-                pickup: pedido.pickup=="mostrador"?"Mostrador":"Foodie-box"
+                pickup: pedido.pickup=="mostrador"?"Mostrador":"Foodie-box",
+                ruta:pedido.imagen
             }
         )
     })
@@ -781,6 +783,7 @@ router.get('/pedidosProveedor/:email', verifyToken, async (req,res)=>{
         resultado.push({
             id: id,
             orderNumber:id.substring(id.length-6,id.length).toUpperCase(),
+            image: pedido.infoCliente[0].imagen,
             customerName: pedido.infoCliente[0].nombre,
             phoneNumber: pedido.infoCliente[0].telefono,
             specifications: pedido.especificaciones,
@@ -857,6 +860,65 @@ router.post('/updateSwitchStateProducto/:id', verifyToken, async (req, res) => {
         res.json({status: 'success'});
     }else{
         res.status(400).json({ status: 'error', message: 'No se pudo actualizar el estado del comedor' });
+    }
+});
+
+router.post('/eliminarProducto/:id', verifyToken, async (req, res) => {
+    const id = req.params.id;
+    console.log("Se borra el producto")
+    const resultado = await db.query("deleteOne","productos",{_id:db.objectID(id)})
+    if(resultado.deletedCount > 0){
+        res.json({status: 'success'});
+    }else{
+        res.status(500).send("Error al eliminar el producto");
+    }
+});
+
+router.post('/updateProducto/:id/:nombre/:descripcion/:precio/:categoria', verifyToken, async (req, res) => {
+    console.log("Inicia la actualizacion del producto")
+
+    const id = req.params.id;
+    const nombre = req.params.nombre;
+    const descripcion = decodeURI(req.params.descripcion);
+    const precio = +req.params.precio;
+    const categoria = req.params.categoria;
+
+    let ruta
+    switch (categoria) {
+        case "comida":
+            ruta = "https://res.cloudinary.com/foodiecloudinary/image/upload/v1722137391/hamburger_kvhvjh.png"
+            break;
+        case "bebidas":
+            ruta = "https://res.cloudinary.com/foodiecloudinary/image/upload/v1722137401/smoothie2_b9bzob.png"
+            break;
+        case "dulces":
+            ruta = "https://res.cloudinary.com/foodiecloudinary/image/upload/v1722137520 chocolate-bar-icon-bitten-pieces-600nw-2256291305_nu4re7.jpg"
+            break;
+        case "frituras":
+            ruta = "https://res.cloudinary.com/foodiecloudinary/image/upload/v1722137375/chips_cbcwfu.png"
+            break;
+        case "otros":
+            ruta = "https://res.cloudinary.com/foodiecloudinary/image/upload/v1722137836/estrella_ixt70l.png"
+            break;
+        default:
+            res.status(500).send("Categoria invalida");
+            break;
+    }
+    
+    // Actualizar el producto en la base de datos
+    const resultado = await db.query("update","productos",{_id:db.objectID(id)},{
+        $set:{
+            nombre:nombre,
+            precio:precio,
+            descripcion:descripcion,
+            categoria:categoria,
+            imagen:ruta,
+        }})
+        
+    if(resultado.modifiedCount>0){
+        res.json({status: 'success'});
+    }else{
+        res.status(400).json({ status: 'error', message: 'No se pudo actualizar el producto' });
     }
 });
   
