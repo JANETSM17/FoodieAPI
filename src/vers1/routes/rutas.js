@@ -831,5 +831,33 @@ router.get('/pedidoEntregado/:id', verifyToken, async (req,res)=>{
         res.json({status: "done"})
     }
 })
+
+router.get('/productosProveedor/:id', verifyToken, async (req,res) => {
+    const id_usuario = req.params.id;
+
+    try{
+
+        const resultado = await db.query("find","productos",{id_proveedor:db.objectID(id_usuario)},{categoria:1,nombre:1,precio:1,descripcion:1,imagen:1,id:'$_id',active:1})
+
+        res.json(resultado)
+    }catch(error){
+        res.json({status: "error"})
+    }
+    
+});
+
+router.post('/updateSwitchStateProducto/:id', verifyToken, async (req, res) => {
+    console.log("Inicia la actualizacion de estado")
+    const newState = req.body.newState; 
+    const id = req.params.id
+    console.log('Este es el nuevo estado', newState)
+    // Actualizar el estado en la base de datos
+    const resultado = await db.query("update","productos",{_id:db.objectID(id)},{$set:{active:newState}})
+    if(resultado.modifiedCount>0){
+        res.json({status: 'success'});
+    }else{
+        res.status(400).json({ status: 'error', message: 'No se pudo actualizar el estado del comedor' });
+    }
+});
   
 module.exports = router;
