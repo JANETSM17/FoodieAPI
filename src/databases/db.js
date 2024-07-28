@@ -2,17 +2,18 @@
 const { MongoClient, ObjectId} = require('mongodb')
 const local = false
 const url = local?'mongodb://127.0.0.1:27017':'mongodb+srv://Admin:FOODIE@clusterfoodie.10j4aom.mongodb.net/'
-const client = new MongoClient(url)
 
 const dbName = local?'foodieLocal':'foodie'
 
 async function con(){
+    const client = new MongoClient(url)
     console.log("inicia la funcion")
     await client.connect()
     console.log("conectado chido")
     const database = client.db(dbName)
     const cli = await database.collection('clientes').find().toArray()
     console.log(cli[0]._id)
+    client.close()
 }
 
 function objectID(id){
@@ -21,6 +22,7 @@ function objectID(id){
 }
 
 async function query(type,collection,mainObject,secondObject,thirdObject) {
+    const client = new MongoClient(url)
     await client.connect()
     console.log("conexion lograda")
     const database = client.db(dbName)
@@ -53,7 +55,6 @@ async function query(type,collection,mainObject,secondObject,thirdObject) {
             await client.close()
             console.log(res)
             return res
-
         case "find":
             console.log("Find:")
             res = await database.collection(collection).find(mainObject).project(secondObject).toArray()
@@ -75,6 +76,5 @@ async function query(type,collection,mainObject,secondObject,thirdObject) {
 
 con()
 .catch(console.error)
-.finally(()=>client.close())
 
 module.exports = {query,objectID};
