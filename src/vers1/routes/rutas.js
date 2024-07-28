@@ -628,7 +628,7 @@ router.get('/enviarPedido/:idCarrito/:espera/:especificaciones/:pickup/:email', 
 
         const resultado = await db.query("update", "pedidos", { _id: db.objectID(idCarrito) }, {
             $set: {
-                estado: "En proceso",
+                estado: "Esperando confirmacion",
                 entrega: date,
                 especificaciones: especificaciones,
                 pickup: pickup,
@@ -725,12 +725,13 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
   });
 
   router.get('/pedidosEnCurso/:id/:email', verifyToken, async (req,res) => {
+    //Esto es del cliente
     const id = req.params.id;
     const email = req.params.email;
 
     console.log('inicia el query')
     const userInfo = await db.query("find","clientes",{_id:db.objectID(id)},{nombre:1,telefono:1,_id:0})
-    const estados = ["Esperando confirmacion","En proceso","Listo para recoger","Cancelado"]
+    const estados = ["Esperando confirmacion","En proceso","Listo para recoger","Cancelado", "Rechazado"]
     const pedidoInfo = await db.query("aggregation","pedidos",[{$match:{cliente: email,estado:{$in:estados}}},{$sort:{entrega:-1}},{$limit:1},{$lookup:{from:"proveedores",localField:"proveedor",foreignField:"correo",as:"infoProveedor"}},{$project:{_id:1,especificaciones:1,descripcion:1, entrega:1,estado:1,clave:1,pickup:1,nombre:"$infoProveedor.nombre",telefono:"$infoProveedor.telefono"}},{$unwind:"$nombre"},{$unwind:"$telefono"}])
     let resultado = []
     pedidoInfo.forEach(pedido=>{
@@ -759,5 +760,76 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
     })
     res.json(resultado)
 });
+
+
+router.get('/pedidosProveedor/:email', verifyToken, async (req,res)=>{
+    const email = req.params.email
+    const estados = ["Esperando confirmacion","En proceso","Listo para recoger"]
+
+    const infoPedidos = await db.query("aggregation","pedidos",[{$match:{proveedor: email, estado:{$in:estados}}},{$lookup:{from:"clientes",localField:"cliente",foreignField:"correo",as:"infoCliente"}},{$sort:{entrega:1}}])
+    let resultado = []
+    infoPedidos.forEach(pedido=>{
+        let total = 0
+        let descripcion = ""
+        pedido.descripcion.forEach(articulo=>{
+            total += (articulo.producto.precio*articulo.cantidad)
+            descripcion += `${articulo.producto.nombre} x${articulo.cantidad},`
+        })
+        descripcion = descripcion.slice(0,-1)
+        let id = pedido._id.toString()
+
+        resultado.push({
+            id: id,
+            orderNumber:id.substring(id.length-6,id.length).toUpperCase(),
+            customerName: pedido.infoCliente[0].nombre,
+            phoneNumber: pedido.infoCliente[0].telefono,
+            specifications: pedido.especificaciones,
+            total: total,
+            items: descripcion,
+            pickupTime: pedido.entrega.toLocaleString(),
+            deliveryType: pedido.pickup=="mostrador"?"Mostrador":"FoodieBox",
+            clave: pedido.clave,
+            status: pedido.estado
+        })
+    })
+    res.json(resultado)
+})
+
+router.get('/aceptarPedido/:id', verifyToken, async (req,res)=>{
+    const id = req.params.id;
+    const resultado = await db.query("update","pedidos",{_id:db.objectID(id)},{$set:{estado:"En proceso"}})
+
+    if(resultado.modifiedCount > 0){
+        res.json({status: "done"})
+    }
+    
+})
+
+router.get('/rechazarPedido/:id', verifyToken, async (req,res)=>{
+    const id = req.params.id;
+    const resultado = await db.query("update","pedidos",{_id:db.objectID(id)},{$set:{estado:"Rechazado"}})
+
+    if(resultado.modifiedCount > 0){
+        res.json({status: "done"})
+    }
+})
+
+router.get('/pedidoListo/:id', verifyToken, async (req,res)=>{
+    const id = req.params.id;
+    const resultado = await db.query("update","pedidos",{_id:db.objectID(id)},{$set:{estado:"Listo para recoger"}})
+
+    if(resultado.modifiedCount > 0){
+        res.json({status: "done"})
+    }
+})
+
+router.get('/pedidoEntregado/:id', verifyToken, async (req,res)=>{
+    const id = req.params.id;
+    const resultado = await db.query("update","pedidos",{_id:db.objectID(id)},{$set:{estado:"Entregado"}})
+
+    if(resultado.modifiedCount > 0){
+        res.json({status: "done"})
+    }
+})
   
 module.exports = router;
