@@ -663,7 +663,7 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
 
         const infoPedidos = await db.query("aggregation", "pedidos", [
             { $match: { proveedor: email, estado: { $in: estados } } },
-            { $lookup: { from: "clientes", localField: "cliente", foreignField: "correo", as: "infoCliente" } }, {$unwind:"$infoCLiente"}
+            { $lookup: { from: "clientes", localField: "cliente", foreignField: "correo", as: "infoCliente" } }, {$unwind:"$infoCliente"}
         ]);
     
         let resultado = [];
