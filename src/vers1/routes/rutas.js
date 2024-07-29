@@ -932,5 +932,132 @@ router.post('/updateProducto/:id/:nombre/:descripcion/:precio/:categoria', verif
         res.status(400).json({ status: 'error', message: 'No se pudo actualizar el producto' });
     }
 });
+
+router.get('/foodiebox/ping/:numSerie',async (req,res)=>{
+    const {numSerie} = req.params
+    const ping = new Date()
+    const resultado = await db.query("update","foodieboxes",{numSerie:numSerie},{$set:{ping:ping}},{upsert:true})
+    res.json({status:resultado.acknowledged?"todo piola":"todo piolan't"})
+})
+
+router.get('/foodiebox/info/:numSerie',async (req,res)=>{
+    const {numSerie} = req.params
+    const resultado = await db.query("find","foodieboxes",{numSerie:numSerie},{_id:0,clave:1})
+    res.json({clave:resultado[0].clave??""})
+})
+
+router.get('/foodiebox/pedidoListo/:clave',async (req,res)=>{
+    const {clave} = req.params
+    console.log("Lo detecta")
+    const pedido = await db.query("find","pedidos",{clave:clave},{cliente:1,clave:1,_id:1})
+    if(pedido.length>0){
+        const setListo = await db.query("update","pedidos",{clave:clave},{$set:{estado:"Listo para recoger"}})
+        if(setListo.modifiedCount>0){
+            const id = pedido[0]._id.toString()
+        res.json({
+            usuario: pedido[0].cliente,
+            clave: pedido[0].clave,
+            numPedido: id.substring(id.length-6,id.length).toUpperCase()
+        })
+        }else{
+            res.json({
+                usuario: "",
+                clave: "",
+                numPedido: ""
+            })
+        }
+    }else{
+        res.json({
+            usuario: "",
+            clave: "",
+            numPedido: ""
+        })
+    }
+    
+})
+
+router.get('/foodiebox/pedidoEntregado/:clave',async (req,res)=>{
+    const {clave} = req.params
+    console.log("Lo detecta")
+    const pedido = await db.query("find","pedidos",{clave:clave},{cliente:1,clave:1,_id:1})
+    if(pedido.length>0){
+        const setEntregado = await db.query("update","pedidos",{clave:clave},{$set:{estado:"Entregado",clave:"N/A"}})
+        if(setEntregado.modifiedCount>0){
+            const id = pedido[0]._id.toString()
+        res.json({
+            usuario: pedido[0].cliente,
+            clave: clave,
+            numPedido: id.substring(id.length-6,id.length).toUpperCase()
+        })
+        }else{
+            res.json({
+                usuario: "",
+                clave: "",
+                numPedido: ""
+            })
+        }
+    }else{
+        res.json({
+            usuario: "",
+            clave: "",
+            numPedido: ""
+        })
+    }
+})
+
+router.get('/foodiebox/pedidoCancelado/:clave',async (req,res)=>{
+    const {clave} = req.params
+    console.log("Lo detecta")
+    const pedido = await db.query("find","pedidos",{clave:clave},{cliente:1,clave:1,_id:1})
+    if(pedido.length>0){
+        const setEntregado = await db.query("update","pedidos",{clave:clave},{$set:{estado:"Cancelado",clave:"N/A"}})
+        if(setEntregado.modifiedCount>0){
+            const id = pedido[0]._id.toString()
+        res.json({
+            usuario: pedido[0].cliente,
+            clave: clave,
+            numPedido: id.substring(id.length-6,id.length).toUpperCase()
+        })
+        }else{
+            res.json({
+                usuario: "",
+                clave: "",
+                numPedido: ""
+            })
+        }
+    }else{
+        res.json({
+            usuario: "",
+            clave: "",
+            numPedido: ""
+        })
+    }
+})
+
+router.get("/foodiebox/ligar/:numSerie",async (req,res)=>{
+    const {numSerie} =req.params
+
+    const busqueda = await db.query("find","foodieboxes",{numSerie:numSerie},{_id:0,numSerie:1})
+    if(busqueda.length>0){
+        const update = await db.query("update","proveedores",{correo:req.session.userMail},{$set:{foodiebox:numSerie}})
+        if(update.acknowledged){
+            res.json({status:"OK"})
+        }else{
+            res.json({status:"Failed"})
+        }
+    }else{
+        res.json({status:"Not found"})
+    }
+})
+
+router.get('/foodiebox/changePassword//:numSerie/:newPswrd',async(req,res)=>{
+    const {numSerie,newPswrd} = req.params
+    const resultado = await db.query("update","foodieboxes",{numSerie:numSerie},{$set:{clave:newPswrd}})
+    if(resultado.matchedCount>0){
+        res.json({status:"OK"})
+    }else{
+        res.json({status:"wrong numSerie"})
+    }
+})
   
 module.exports = router;
