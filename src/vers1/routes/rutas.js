@@ -676,6 +676,8 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
             });
             descripcion = descripcion.slice(0, -1);
             let id = pedido._id.toString();
+            let fecha = pedido.entrega
+            fecha.setHours(fecha.getHours()-6)
     
             resultado.push({
             _id: id,
@@ -683,7 +685,7 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
             nombre: pedido.infoCliente[0].nombre,
             total: total,
             descripcion: descripcion,
-            hora: pedido.entrega.toLocaleString(),
+            hora: fecha.toLocaleString(),
             especificaciones: pedido.especificaciones,
             pickup: pedido.pickup=="mostrador"?"Mostrador":"FoodieBox",
             ruta : pedido.infoCliente[0].imagen
@@ -746,6 +748,8 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
         })
         descripcion = descripcion.slice(0,-1)
         let id = pedido._id.inspect()
+        let fecha = pedido.entrega
+            fecha.setHours(fecha.getHours()-6)
         resultado.push(
             {
                 id:id.substring(id.length-8,id.length-2).toUpperCase(),
@@ -754,7 +758,7 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
                 especificaciones: pedido.especificaciones,
                 total: total,
                 descripcion: descripcion,
-                entrega: pedido.entrega.toLocaleString(),
+                entrega: fecha.toLocaleString(),
                 status: pedido.estado,
                 clave: pedido.clave,
                 pickup: pedido.pickup=="mostrador"?"Mostrador":"Foodie-box",
@@ -781,6 +785,8 @@ router.get('/pedidosProveedor/:email', verifyToken, async (req,res)=>{
         })
         descripcion = descripcion.slice(0,-1)
         let id = pedido._id.toString()
+        let fecha = pedido.entrega
+            fecha.setHours(fecha.getHours()-6)
 
         resultado.push({
             id: id,
@@ -791,7 +797,7 @@ router.get('/pedidosProveedor/:email', verifyToken, async (req,res)=>{
             specifications: pedido.especificaciones,
             total: total,
             items: descripcion,
-            pickupTime: pedido.entrega.toLocaleString(),
+            pickupTime: fecha.toLocaleString(),
             deliveryType: pedido.pickup=="mostrador"?"Mostrador":"FoodieBox",
             clave: pedido.clave,
             status: pedido.estado
