@@ -691,8 +691,8 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
             ruta : pedido.infoCliente.imagen
             });
 
-            console.log('Nombre: '+ pedido.infoCliente[0].nombre)
-            console.log('Ruta: '+ pedido.infoCliente[0].imagen)
+            console.log('Nombre: '+ pedido.infoCliente.nombre)
+            console.log('Ruta: '+ pedido.infoCliente.imagen)
         });
         res.json(resultado);
       }else{
