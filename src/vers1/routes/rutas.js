@@ -663,7 +663,7 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
 
         const infoPedidos = await db.query("aggregation", "pedidos", [
             { $match: { proveedor: email, estado: { $in: estados } } },
-            { $lookup: { from: "clientes", localField: "cliente", foreignField: "correo", as: "infoCliente" } }
+            { $lookup: { from: "clientes", localField: "cliente", foreignField: "correo", as: "infoCliente" } }, {$unwind:"$infoCLiente"}
         ]);
     
         let resultado = [];
@@ -682,13 +682,13 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
             resultado.push({
             _id: id,
             numerodepedido: id.substring(id.length - 8, id.length - 2).toUpperCase(),
-            nombre: pedido.infoCliente[0].nombre,
+            nombre: pedido.infoCliente.nombre,
             total: total,
             descripcion: descripcion,
             hora: fecha.toLocaleString(),
             especificaciones: pedido.especificaciones,
             pickup: pedido.pickup=="mostrador"?"Mostrador":"FoodieBox",
-            ruta : pedido.infoCliente[0].imagen
+            ruta : pedido.infoCliente.imagen
             });
 
             console.log('Nombre: '+ pedido.infoCliente[0].nombre)
