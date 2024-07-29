@@ -704,11 +704,13 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
             descripcion = descripcion.slice(0,-1)
             let id = pedido._id.toString();
             total += precio
+            let fecha = pedido.entrega
+            fecha.setHours(fecha.getHours()-6)
             resultado.push(
                 {
                     _id: id,
                     total: precio,
-                    hora: pedido.entrega.toLocaleString(),
+                    hora: fecha.toLocaleString(),
                     ruta:pedido.infoProveedor[0].imagen,
                     descripcion: descripcion,
                     especificaciones: pedido.especificaciones,
