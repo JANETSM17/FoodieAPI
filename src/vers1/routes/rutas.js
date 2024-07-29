@@ -712,7 +712,7 @@ router.get('/getPedidosHist/:correo/:userType', verifyToken, async (req, res) =>
                     ruta:pedido.infoProveedor[0].imagen,
                     descripcion: descripcion,
                     especificaciones: pedido.especificaciones,
-                    pickup: pedido.pickup=="mostrador"?"Mostrador":"FoodieBox",
+                    pickup: pedido.pickup,
                     proveedor: pedido.infoProveedor[0].nombre
                 }
             )
