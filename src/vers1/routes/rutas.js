@@ -563,7 +563,7 @@ router.get('/confirmarFoodieBox/:idCarrito', verifyToken, async (req, res) => {
 
       console.log(isActive);
   
-      res.json({ status: isActive });
+      res.json({ status: !isActive });
     } catch (error) {
       console.error('Error confirming FoodieBox:', error);
       res.status(500).json({ status: false, error: 'Internal Server Error' });
